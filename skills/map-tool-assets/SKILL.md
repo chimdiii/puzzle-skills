@@ -135,7 +135,7 @@ When `start-here` called this skill as a stage of the round-out, also report bac
 
 - Propose, then write. No asset exists before the user approves the list.
 - Never invent a URL. Built URLs are marked until clicked; missing URLs are asked for.
-- Extend, never duplicate. Existing assets get updated.
+- Extend, never duplicate. Existing assets get updated: `update_assets` with `{id, name, url, type, status, description}`, only the fields that changed. A moved URL is updated in place; a switched-off automation or a replaced template becomes `Deprecated`, never deleted, so the steps that used it keep the record.
 - Page through everything. A connector's first page is not the inventory.
 - Someone else's data stays out. A client's items inside a shared tool, or anything the user did not scope, is listed under "left out".
 - Catalogue `tool_id` creates and links; workspace `account_tool_id` filters assets, data and the changelog.

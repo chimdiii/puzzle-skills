@@ -13,12 +13,12 @@ Four canvases, a changelog, tasks and shared views. Everything links to everythi
 
 | Thing | Lives on | What it is |
 |---|---|---|
-| Tab | every canvas | A view that groups content: Onboarding, Sales, Current State, Future State. Each canvas has its own tabs. |
+| Tab and tab folder | every canvas | A tab is a view that groups content: Onboarding, Sales, Current State, Future State. Each canvas has its own tabs. A folder groups tabs in the canvas's sidebar (a Sales folder holding Leads and Deals) and holds only its own canvas's tabs. |
 | Section | Workflow | One process. Holds steps and their connections. Has a description and notes. |
 | Step | Workflow | One activity. Carries a type (task, email, form, conditional, delay, go_to, subflow, and more), a status (Draft, In_Progress, Testing, Live, Archived), an executor (Person, Automation, AI Agent), roles with RACI involvement, tools, attributes, assets, duration in minutes, frequency per month, and notes. |
 | Connection | Workflow | An arrow from one step to the next, with an optional label (the outcome of a conditional, a timing). |
-| Team and role | Team | A role is a position with an hourly rate; a team groups roles; role connections are reporting lines. Steps are owned by roles. |
-| Person | People | A human (or an AI agent) who holds one or more roles and has access to tools. |
+| Team and role | Team | A role is a position with an hourly rate, a status (draft, planned, hiring, filled, archived) and a type (internal, or external for a seat held outside the organisation: an agency, a contractor, a vendor). A team groups roles; role connections are reporting lines. Steps are owned by roles. |
+| Person | People | A human (or an AI agent) who holds one or more roles and has access to tools. Carries Details: active (Status: Active or Inactive), phone, location, time_zone, start_date and end_date. |
 | Tool and tool group | Tools | A system the operation runs on, with its costs and status. Groups organise tools. |
 | Entity and attribute | Tools (data model) | The records a tool holds (Contact, Deal, Ticket) and their fields. Attributes link to the steps that read or write them, as trigger, input or output. |
 | Asset | Tools | A template, report, document, video or snippet kept inside a tool, with a URL, linked to the steps that use it. |
@@ -41,6 +41,8 @@ The map is a model the team maintains. It describes the operation as the team ha
 - Names and notes can carry HTML from the editor: `<p>` wrappers and `<span data-type="mention" data-label="Webflow">` mentions of tools, roles and people. Strip the tags and keep the label text when you report them; the mentions tell you which tool or role the author linked inline.
 - `hourly_rate` on a role comes back as an object, `{"amount": "50.00", "currency": "USD"}`, or `null` when unset. Use the amount as a number and keep the currency.
 - `field_type` on an attribute can be `null` when the author never set it; treat that as "untyped", not as text.
+- `list_tabs` returns tabs in sidebar order with `folder_id` (null at the top level) and `position`. Pass `include_folders: true` to get the folders too, as rows with `type: "folder"`.
+- A role's `status` and `type`, and a person's Details (`active`, `phone`, `location`, `time_zone`, `start_date`, `end_date`), come back only when included. Dates are `YYYY-MM-DD`, or `null` when blank; `time_zone` is an IANA name (`America/New_York`). Roles that existed before status did were set to `filled` when someone held them and `draft` otherwise, so a `draft` role may simply never have been reviewed.
 
 ### The two tool ids
 
@@ -53,11 +55,13 @@ Resolve several tools in one call with a comma-separated query: `"Attio, QuickBo
 
 ## Which call answers which question
 
-**What processes exist, and where.** `list_tabs` with canvas `workflows`, then `list_sections` per tab with `include: ["step_count", "description"]`. Archived tabs and sections are history unless the user asks about them.
+**What processes exist, and where.** `list_tabs` with canvas `workflows` (and `include_folders: true` when the sidebar groups tabs into folders, so you can say "the Sales folder holds Leads and Deals"), then `list_sections` per tab with `include: ["step_count", "description"]`. Archived tabs and sections are history unless the user asks about them.
 
 **Walk me through this process.** `list_sections` with `query`, then `list_steps` with `section_id` and `include: ["type", "status", "executor", "notes", "duration", "frequency", "roles.role_name", "roles.involvement", "tools.tool_name", "tags.tag_name", "connections.connection_id", "connections.to_step_id", "connections.to_step_name", "connections.label"]`. Steps come back unordered; put them in flow order (next section). For a `go_to`, `alias` or `subflow` step, add `target` to see where it points.
 
 **Who does this, and who signs off.** The roles on the step with `roles.role_name` and `roles.involvement` (responsible, approver, consulted, informed). To find every step a role owns: `list_steps` with `role_id`. To find the humans in a role: `list_roles` with `include: ["people.first", "people.last", "team_name", "hourly_rate"]`. To go from a person to their roles: `list_people` with `include: ["roles.role_name", "team_names"]`.
+
+**Which seats are open, and who is on the team now.** `list_roles` with `status` (`planned` for decided but empty, `hiring` for recruiting now) or `type: "external"` for seats held outside the organisation, with `include: ["status", "type", "team_name", "step_count", "people.first"]`. `list_people` with `active: true` (or `false` for people who have left) and `include: ["active", "location", "time_zone", "start_date", "end_date", "roles.role_name"]`. A role that owns steps and is `planned` or `hiring` is work the map says nobody does yet; say so. An inactive person still holding a role is a finding, not a fact about who does the work.
 
 **What is tagged X, and which tags exist.** `list_tag_groups` with `include: ["description", "tag_count", "tags.id", "tags.name", "tags.color"]` for the set. `list_steps` with `tag_id` for every step carrying a tag, across sections; add `section_name` to the include to group them by process. `list_tags` with `step_id` for the tags on one step, or with `include: ["tag_group_name", "step_count"]` for how much each is used. On any step list, `include: ["tags.tag_name", "tags.tag_group_name"]` adds the tags. No groups back means the workspace doesn't use tags (or its plan doesn't have them), not that something failed.
 

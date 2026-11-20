@@ -20,8 +20,8 @@ Load `read-the-map` first.
 
 1. `list_tabs` with canvas `teams` and canvas `people`. Pick the tab or confirm it with the user.
 2. `list_teams` with `include: ["roles.id", "roles.name", "role_connections.id", "role_connections.from_role_name", "role_connections.to_role_name"]`. What already exists must be extended, never recreated. A manager-report pair that already has a line is not given another.
-3. `list_roles` with `include: ["hourly_rate", "team_name", "step_count", "people.first", "people.last"]`. Note roles without rates and roles without people.
-4. `list_people` with `include: ["email", "person_type", "roles.role_name", "tools.tool_name", "connections.connection_id", "connections.from_person_name", "connections.to_person_name", "connections.label"]`.
+3. `list_roles` with `include: ["hourly_rate", "status", "type", "team_name", "step_count", "people.first", "people.last"]`. Note roles without rates, roles without people, and roles whose status disagrees with who holds them (a `filled` role with nobody in it, a `planned` role with someone in it).
+4. `list_people` with `include: ["email", "person_type", "active", "phone", "location", "time_zone", "start_date", "end_date", "roles.role_name", "tools.tool_name", "connections.connection_id", "connections.from_person_name", "connections.to_person_name", "connections.label"]`.
 5. `list_tools` scope `workspace` for the tools people will get access to.
 
 ## The single intake round
@@ -32,6 +32,8 @@ Draft the whole structure from what the user gave you (an org chart, a list of n
 - **Reporting lines**: do not require a reports-to. Use one the user stated, by name or by title; a stated line wins over a guess. Otherwise infer from title seniority and team, for roles and for people. Rank within the team: C-level, founder, or owner; then VP, head, or director; then manager or lead; then senior; then the individual contributor; then coordinator, associate, assistant, or intern. Each one reports to the nearest more-senior one in the same team. The most senior in a team reports to the nearest more-senior person outside it. Someone who is the top has no manager, and never a line to themselves. Same rank means peers: they share the manager above them, and no line joins them. One manager each, unless the user stated a second line. Ask one short question only when two candidates are equally senior and either could be the manager, and name the candidates. Do not ask when the rank names a single manager. Put every line in the Reports to column. Approving the push plan confirms the inference.
 - **Rates**: for every role without an hourly rate, research a figure before asking. Use a public salary source for the title and region, convert salary to hourly on 2,080 hours a year, state whether it is base or loaded (base × 1.25 to 1.4 for benefits and overhead), and present it as "confirm or correct". Never create a rate-less role.
 - **People**: name, email, type (employee, contractor, vendor, advisor, board_member, intern, volunteer, ai_agent), and which roles each holds. If a person is named with no role, ask what role they hold.
+- **Role status and type**: every role gets a status and a type. Status is one of five: `draft` (the default, not yet reviewed), `planned` (decided, nobody in it yet), `hiring` (recruiting now), `filled` (someone holds it), `archived` (no longer used). Derive it before asking: a role with a person in it is `filled`; an empty role the user describes as a future hire is `planned`, or `hiring` if they are recruiting. `future` and `open` are old values the MCP refuses; use `planned` for both. Type is `internal` (the default) or `external`, for a seat held outside the organisation: an agency, a contractor, a vendor, an outsourced bookkeeper.
+- **People's Details**: Status (`active`: true for Active, false for someone who has left), phone, location, time zone (an IANA name such as `America/New_York`, never "EST"), start date and end date (`YYYY-MM-DD`). Fill only what a source states (the org chart, a directory export, the user); never guess a phone number or a date. Someone who has left is `active: false` with an `end_date`, not deleted: their history on the map stays.
 - **Tool access**: which workspace tools each person uses, if the user wants access mapped.
 - **Layout**: org charts and people charts are always `top_to_bottom`. One row per level. Each manager's direct reports sit on the one row beneath that manager. No line crosses another line, and no line runs across a card. A flat team stays top to bottom. The layout engine places the cards from the connections and `direction`. There is no position field. Do not use `left_to_right`.
 
@@ -41,14 +43,14 @@ Present the proposal as two tables, then stop for approval:
 
 ```
 ## Teams and roles
-| Team | Role | Rate ($/h) | Basis | Reports to | People |
-|---|---|---|---|---|---|
-| Sales | VP Sales | 96 | $200k base ÷ 2080 | CEO | Maria L. |
-| Sales | Account Executive | 48 | $100k base ÷ 2080 | VP Sales | 2 (names) |
+| Team | Role | Rate ($/h) | Basis | Status | Type | Reports to | People |
+|---|---|---|---|---|---|---|---|
+| Sales | VP Sales | 96 | $200k base ÷ 2080 | filled | internal | CEO | Maria L. |
+| Sales | Account Executive | 48 | $100k base ÷ 2080 | hiring | internal | VP Sales | none yet |
 
 ## People
-| Person | Type | Email | Roles | Reports to | Tools |
-|---|---|---|---|---|---|
+| Person | Type | Email | Status | Location / time zone | Start | Roles | Reports to | Tools |
+|---|---|---|---|---|---|---|---|---|
 ```
 
 ### The push plan
@@ -70,19 +72,20 @@ One block for the Team canvas (teams, roles, rates, reporting lines, and the bot
 
 `from` is the manager. `to` is the report. A reporting line leaves the bottom of the senior card and enters the top of the junior card. None of the create calls accept handles. On `create_org_structure` and `create_people` a connection is `from`, `to`, and `label`. On `create_role_connections` it is `from_role_id`, `to_role_id`, and `label`. On `create_person_connections` it is `from_person_id`, `to_person_id`, and `label`. `direction` on `create_org_structure` and `create_people` defaults to `left_to_right`, which is what lays the cards in a row and hooks the lines to the sides. Pass `top_to_bottom` on both. The two id-based connection calls have no `direction`. Handles are the next call, on the connection id.
 
-1. **Teams and roles in one call.** `create_org_structure` with `teams` (new teams with nested `roles`, each with `hourly_rate` and `notes`), `standalone_roles`, `connections` between role `temp_id`s, and `direction: "top_to_bottom"`. One connection per manager-report pair, and none for a pair that already has a line. To add roles to an existing team, pass `team_id` and omit `name`. Reporting lines between existing roles go through `create_role_connections`, using their ids.
+1. **Teams and roles in one call.** `create_org_structure` with `teams` (new teams with nested `roles`, each with `hourly_rate`, `status`, `type` and `notes`), `standalone_roles`, `connections` between role `temp_id`s, and `direction: "top_to_bottom"`. One connection per manager-report pair, and none for a pair that already has a line. To add roles to an existing team, pass `team_id` and omit `name`. Reporting lines between existing roles go through `create_role_connections`, using their ids.
 2. **Bottom to top on every role line.** `list_teams` with `include: ["role_connections.id", "role_connections.from_role_name", "role_connections.to_role_name"]`. `update_org` with one `role_connections` entry per reporting line: `{id, source_handle: "bottom", target_handle: "top"}`. `source_handle` and `target_handle` are `top`, `bottom`, `left`, or `right`. A reporting line uses `bottom` and `top` only.
-3. **People.** `create_people` with `people` (first, last, email, person_type) and `direction: "top_to_bottom"`. When the proposal has people reporting lines, include `connections` between person `temp_id`s, one per pair. Capture the returned ids. Lines between people who already exist go through `create_person_connections`.
+3. **People.** `create_people` with `people` (first, last, email, person_type, and the Details the proposal states: `active`, `phone`, `location`, `time_zone`, `start_date`, `end_date`) and `direction: "top_to_bottom"`. When the proposal has people reporting lines, include `connections` between person `temp_id`s, one per pair. Capture the returned ids. Lines between people who already exist go through `create_person_connections`.
 4. **Bottom to top on every people line.** `list_people` with `include: ["connections.connection_id", "connections.from_person_name", "connections.to_person_name", "connections.label"]`. Ids come back on `connections_in` and `connections_out` as `connection_id`. `update_people` with one `person_connections` entry per reporting line: `{id, source_handle: "bottom", target_handle: "top"}`.
 5. **Put people in roles and give tool access.** `update_people` with `add_role_ids` and `add_account_tool_ids` per person. Existing people get the same call; roles they already hold are skipped.
-6. **Rates on existing roles.** `update_org` with `roles: [{id, hourly_rate}]`. Move a role between teams with `team_id`; make it standalone with `remove_from_team`.
-7. **Notes.** Each role's note says what the role owns in two lines and where the rate came from. Each team's note says what the team is for.
+6. **Rates, status and type on existing roles.** `update_org` with `roles: [{id, hourly_rate, status, type}]`, only the fields that change. Move a role between teams with `team_id`; make it standalone with `remove_from_team`.
+7. **Details on existing people.** `update_people` with `{id, active, phone, location, time_zone, start_date, end_date}`, only the fields that change. Pass `""` or `null` to clear phone, location, time zone or a date. When someone leaves: `active: false` and `end_date`, `remove_role_ids` for the roles they held, then `update_org` sets each of those roles to `hiring` or `planned` (or `archived` if the seat goes away). When someone fills a role, the role goes to `filled` in the same push.
+8. **Notes.** Each role's note says what the role owns in two lines and where the rate came from. Each team's note says what the team is for.
 
 ## Verify
 
-- `list_roles` with `include: ["hourly_rate", "team_name", "people.first"]`: every role has a rate, every role meant to be staffed has a person.
+- `list_roles` with `include: ["hourly_rate", "status", "type", "team_name", "people.first"]`: every role has a rate, every role meant to be staffed has a person, every `filled` role has someone in it and no `planned` or `hiring` role does.
 - `list_teams` with `include: ["role_connections.id", "role_connections.from_role_name", "role_connections.to_role_name"]`: each role reporting line matches the proposal, `from` the manager and `to` the report, once. No line between peer roles. No loop.
-- `list_people` with `include: ["roles.role_name", "tools.tool_name", "connections.connection_id", "connections.from_person_name", "connections.to_person_name", "connections.label"]`: every named person holds the roles proposed, and each people-chart line follows the same rule. Ids are `connection_id` on `connections_in` and `connections_out`.
+- `list_people` with `include: ["active", "time_zone", "start_date", "end_date", "roles.role_name", "tools.tool_name", "connections.connection_id", "connections.from_person_name", "connections.to_person_name", "connections.label"]`: every named person holds the roles proposed, and each people-chart line follows the same rule. Ids are `connection_id` on `connections_in` and `connections_out`.
 - A pair the proposal listed once that now has two connections keeps one. `delete` the extra, type `role_connection` or `person_connection`. A peer line or a loop this run added is deleted the same way, and you say which. The chart is not done with a duplicate, a peer chain, or a cycle in it.
 - Those reads return the connection id, the two ends, and the label. They do not return handles. Before reporting done, every reporting connection id from the read has been sent to `update_org` or `update_people` with `source_handle` `bottom` and `target_handle` `top`. Any id missing that update gets it now. A reporting line still on a side handle, or never set, means the chart is not done.
 - If steps already exist that should be owned by the new roles, link them now: `link_to_steps` with type role and involvement responsible (approver, consulted and informed where they apply).
@@ -92,12 +95,14 @@ One block for the Team canvas (teams, roles, rates, reporting lines, and the bot
 When `start-here` called this skill as a stage of the round-out, also report back the counts and ids created or changed so it can tick the Workspace entry.
 
 
-Create a changelog entry with `log-a-decision`: the teams and roles created, each rate and its basis, the reporting lines, the people added and their roles, and any role left vacant on purpose. Status completed, owner the person who asked.
+Create a changelog entry with `log-a-decision`: the teams and roles created, each rate and its basis, the reporting lines, the people added and their roles, each role's status and type, and any role left `planned` or `hiring` on purpose. Status completed, owner the person who asked.
 
 ## Rules
 
 - Extend, never duplicate. A second "Sales" team or a second "Account Executive" role is a fragment.
 - Never create a role without an hourly rate, and never state a rate without its basis.
+- Status follows the seat, not the wish: `filled` only with someone in it, `planned` or `hiring` only without. Never `future` or `open`.
+- A person who left is made Inactive with an end date, never deleted.
 - A person's name never goes on a step. The role owns the step; the person holds the role.
 - Reporting lines are role to role on the org chart. Person-to-person connections are the people chart, not ownership.
 - A reporting line runs from the manager's bottom handle to the report's top handle. Never left or right. Side handles chain peers sideways, and the chart stops reading as a tree.

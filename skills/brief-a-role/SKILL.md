@@ -11,7 +11,7 @@ Load `read-the-map` first.
 
 ## Read
 
-1. The role: `list_roles` with `query` and `include: ["team_name", "notes", "step_count", "people.first", "people.last"]`. If the user names a person, `list_people` with `include: ["roles.role_id", "roles.role_name"]` to get their roles; brief one role at a time.
+1. The role: `list_roles` with `query` and `include: ["team_name", "notes", "status", "type", "step_count", "people.first", "people.last"]`. A role that is `planned` or `hiring` is briefed for the person who will take it; an `external` role is briefed for the agency or contractor that holds it, so leave out internal-only context they should not get. If the user names a person, `list_people` with `include: ["roles.role_id", "roles.role_name", "start_date", "time_zone", "location"]` to get their roles, and to date the brief to their start and note where their colleagues sit in time; brief one role at a time.
 2. The role's steps: `list_steps` with `role_id` and `include: ["section_id", "section_name", "type", "status", "executor", "notes", "roles.role_name", "roles.involvement", "tools.tool_name", "connections.connection_id", "connections.to_step_id", "connections.to_step_name", "connections.from_step_id", "connections.from_step_name", "connections.label"]`. Note each step's involvement: the role may be responsible on some, approver or consulted on others.
 3. The whole section for each process: `list_steps` with `section_id` and the same includes. A step makes sense only with what precedes and follows it. Put each section in flow order.
 4. The team: `list_teams` with `include: ["roles.name", "role_connections.from_role_name", "role_connections.to_role_name"]` for who the role reports to and who reports to it.

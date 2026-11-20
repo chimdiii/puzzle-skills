@@ -65,8 +65,9 @@ Every workspace tool the decision involves: introduced, extended, bridged, depre
 On the Optimizer plan an entry can carry its own cost case. When the decision changes how work is done (a redesign, an automation, a tool swap, a removed step), name both sides:
 
 - **Current state:** the sections, or whole Workflow tabs, that run today (typically the section on the Current State tab).
-- **Future state:** the sections or tabs that will run after the change (typically its counterpart on the Future State tab). A source cannot sit on both sides.
-- **Exclusions:** steps in the future state that will not run after the change are left out of its cost, not deleted. Exclude by status first (Archived, Draft); exclude by tag only for a cut no status expresses, such as a phase mapped but not in this change's scope. The current side always counts every step.
+- **Future state:** the sections or tabs that will run after the change (typically its counterpart on the Future State tab).
+- **Exclusions:** each side has its own filter, `current_state_exclude` and `future_state_exclude`, each `{statuses, tag_ids}`. Steps that will not run after the change are left out of the future cost, not deleted. Exclude by status first (Archived, Draft); exclude by tag only for a cut no status expresses, such as a phase mapped but not in this change's scope. Leave the current filter empty unless the current side needs one (next point).
+- **One map, both sides.** When the change was drawn into the same section or tab as today's work (the proposed steps added in Draft beside the steps that run now), name that section or tab on both sides with different filters: the current side excludes the proposed steps (by their Draft status, or a tag), the future side excludes the steps the change retires (Archived). The MCP accepts a source on both sides only while the two filters differ, because otherwise it would cost the same on each. Separate Current State and Future State tabs need no filter on the current side.
 
 Resolve the ids with `list_sections` (or `list_tabs` for a whole tab) and put them in the proposal. A decision that changes no cost (a naming rule, a shared view, a data field) skips this step.
 
@@ -128,7 +129,7 @@ Content rules:
 
 `update_changelog_entries` with `add_step_ids` and `add_account_tool_ids`. Report any id that failed; don't block on it.
 
-When step 7 applies, the same call (create carries no state fields) sets `add_current_state_section_ids` or `add_current_state_tab_ids`, `add_future_state_section_ids` or `add_future_state_tab_ids`, and `future_state_exclude` with `statuses` and `tag_ids`. `future_state_exclude` replaces the whole filter; `{}` clears it.
+When step 7 applies, the same call sets `add_current_state_section_ids` or `add_current_state_tab_ids` and `add_future_state_section_ids` or `add_future_state_tab_ids` (create takes no sources), plus `future_state_exclude` and, when the current side needs one, `current_state_exclude`, each with `statuses` and `tag_ids`. Both filters can also go on the create call itself. Each replaces its whole filter; `{}` clears it. For one section or tab on both sides, send the filters in the same call as the sources, or first: a source added to the second side while the two filters still match is refused.
 
 Then read it back: `list_changelog_entries` with the `id` and `include: ["current_state", "future_state", "cost_analysis"]`. `has_current` and `has_future` should both be true. A side that totals zero while it holds steps is missing inputs (durations, frequencies, role rates), not free: report which steps lack them and leave the figure as it is. Never fill an input to make the number move; `cost-a-process` finds the gaps.
 

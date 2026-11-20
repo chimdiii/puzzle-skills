@@ -28,8 +28,8 @@ Read the onboarding changelog entry first (`list_changelog_entries` with `query:
 | Tools | `list_tools` scope `workspace`, `include: ["status", "cost_items", "tool_group_name"]` | tools; with any cost item; groups |
 | Data model | `list_entities`, `include: ["attribute_count", "step_count", "tool_name"]` | entities; attributes; linked to any step |
 | Assets | `list_assets`, `include: ["type", "step_count"]` | assets; linked to any step |
-| Team | `list_teams`, `include: ["role_count", "role_connections"]`; `list_roles`, `include: ["hourly_rate", "step_count", "people.person_id"]` | teams; roles; with a rate; with a person; reporting lines |
-| People | `list_people`, `include: ["role_count", "person_type", "tools"]` | people; holding a role; with tool access |
+| Team | `list_teams`, `include: ["role_count", "role_connections"]`; `list_roles`, `include: ["hourly_rate", "status", "type", "step_count", "people.person_id"]` | teams; roles; with a rate; with a person; by status (draft, planned, hiring, filled, archived); external; reporting lines |
+| People | `list_people`, `include: ["role_count", "person_type", "tools", "active", "time_zone", "start_date"]` | people; active and inactive; holding a role; with tool access; with Details filled |
 | Workflows | `list_tabs` canvas `workflows`; `list_sections` per tab, `include: ["step_count"]`; for the first map, `list_steps` with `include: ["executor", "duration", "frequency", "roles.role_id", "tools.tool_id"]` | tabs; sections; steps; on the first map, steps missing executor, role, cost inputs or tool |
 | Record | `list_changelog_entries`, `include: ["status", "cost_analysis"]`; `list_shared_views`; `list_comments`, `resolved: false`, `top_level: true` | entries by status; entries with a cost analysis (both sides set); shared views; open comments by type (questions, pain points, ideas) |
 | Tags | `list_tag_groups`, `include: ["tag_count"]`; `list_tags`, `include: ["step_count"]` | groups; tags; tags on any step (none is not a gap; see stage 6) |
@@ -86,11 +86,11 @@ Onboarding creates none. What lives inside the connected tools, with the type ma
 
 ### Stage 4: round out the team
 
-Onboarding left teams and roles from the org chart, without rates. Change: an hourly rate on every role, proposed as the average base salary for the title and region divided by 2,080, basis stated, confirmed in the proposal; reporting lines where thin; a note on what each role owns. Add: roles that steps name but the canvas lacks. Through `map-the-team`.
+Onboarding left teams and roles from the org chart, without rates. Change: an hourly rate on every role, proposed as the average base salary for the title and region divided by 2,080, basis stated, confirmed in the proposal; reporting lines where thin; a note on what each role owns; a status on every role still `draft` (`filled` when someone holds it, otherwise `planned`, `hiring` or `archived` as the user says) and `external` on seats held by an agency, contractor or vendor. Add: roles that steps name but the canvas lacks. Through `map-the-team`.
 
 ### Stage 5: round out the people
 
-Onboarding left people cards. Sources in order: the existing people; the Google Workspace directory and the Slack user list where those connectors are present (Puzzle has no directory connector of its own); a CSV; LinkedIn, searched for people at the company, as a recommendation list the user confirms name by name, public titles only; the user. Change: a role on every person who holds none, type and email where blank, tool access from stage 1 where a source states it. Add: missing people, confirmed. Batches of 50. Through `map-the-team`.
+Onboarding left people cards. Sources in order: the existing people; the Google Workspace directory and the Slack user list where those connectors are present (Puzzle has no directory connector of its own); a CSV; LinkedIn, searched for people at the company, as a recommendation list the user confirms name by name, public titles only; the user. Change: a role on every person who holds none, type and email where blank, tool access from stage 1 where a source states it, and the Details a source states (the directory's phone, location and start date; Slack's time zone; `active: false` with an `end_date` for anyone the directory shows as gone). Add: missing people, confirmed. Batches of 50. Through `map-the-team`.
 
 ### Stage 6: the first map, then the next thing
 

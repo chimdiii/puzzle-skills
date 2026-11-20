@@ -28,8 +28,8 @@ Pull everything the checks need, in as few calls as the scope allows:
 2. `list_sections` per Workflow tab with `include: ["step_count", "description", "notes"]`.
 3. `list_steps` per section with `include: ["type", "status", "executor", "notes", "duration", "frequency", "target", "roles.role_id", "roles.role_name", "roles.involvement", "tools.tool_id", "tools.tool_name", "connections.connection_id", "connections.to_step_id", "connections.from_step_id", "connections.label"]`. Page through; `meta.total` is the count.
 4. `list_attributes` with `step_id` only for steps that have a tool and might touch data (form, database, email, document, payment, task steps with a tool). Or pull every attribute once with `include: ["steps.step_id", "steps.kind", "entity_name", "tool_name"]` and index by step.
-5. `list_roles` with `include: ["hourly_rate", "team_name", "step_count", "people.person_id"]`.
-6. `list_people` with `include: ["role_count", "person_type"]`.
+5. `list_roles` with `include: ["hourly_rate", "status", "type", "team_name", "step_count", "people.person_id"]`.
+6. `list_people` with `include: ["role_count", "person_type", "active", "end_date"]`.
 7. `list_tools` scope `workspace` with `include: ["status", "cost_items", "tool_group_name"]`, then `list_steps` with `tool_id` per tool to count usage (or use the step list already loaded).
 8. `list_entities` with `include: ["attribute_count", "step_count", "tool_name"]`.
 9. `list_assets` with `include: ["status", "step_count", "tool_name"]`.
@@ -66,7 +66,7 @@ Each check names what it finds, why it matters, and the fix. Severity: **blocks*
 | Conditional with fewer than two outgoing connections | blocks | A fork with one outcome is not a fork | Add the missing branch or change the type |
 | Outgoing connection from a conditional with no label | weakens | The branch cannot be read without opening steps | Label it ("✅Yes", "❌No", the condition) |
 | Step with no connections in a section that has connections | weakens | Orphan: either unplaced or a leftover | Connect it or archive it |
-| `go_to` or `subflow` with no target | blocks | The jump goes nowhere | Set `target_step_id` or `target_section_id` |
+| `go_to` or `subflow` with no target, or a subflow pointing at an archived section | blocks | The jump goes nowhere | Set `target_step_id` or `target_section_id`; when the section it ran is gone and no replacement exists yet, clear it with `target_section_id: null` and say so |
 | Section with no trigger step (every step has an incoming connection) | weakens | A loop with no entry | Identify the trigger |
 | Section with more than one step that has no incoming connection, not by design | tidies | Multiple entry points or fragments | Confirm which are triggers |
 | Section with zero steps | tidies | Empty container | Delete or fill |
@@ -78,6 +78,10 @@ Each check names what it finds, why it matters, and the fix. Severity: **blocks*
 |---|---|---|---|
 | Role with no hourly rate | blocks for costing | Every step it owns costs zero | Research a rate, confirm, set it (`update_org`) |
 | Role that owns steps but has no person | weakens | Nobody is in the seat on the map | Add or assign a person (`update_people`, add_role_ids), or note it as vacant |
+| Role that owns Live steps and is `planned`, `hiring` or `archived` | weakens | Live work the map says nobody holds, or a retired seat still doing it | Assign a person and set `filled`, or move the steps to the role that does them (`update_org`, `link_to_steps`) |
+| Role `filled` with nobody in it, or `planned` or `hiring` with someone in it | tidies | Status and seat disagree | Set the status to match (`update_org`); ask if the person is leaving |
+| Role still `draft` and owning steps | tidies | Never reviewed; older roles were backfilled to `draft` when empty | Propose `planned`, `hiring` or `archived` for the user to confirm |
+| Inactive person (`active: false`, or an `end_date` in the past) still holding a role | weakens | The map names someone who has left as doing the work | `update_people` remove_role_ids; set the role to `hiring` or `planned`; never delete the person |
 | Person with no role | tidies | A name with no position | Assign a role or mark as a vendor/advisor |
 | Role with zero steps | tidies | Either unmapped work or a leftover | Ask |
 
@@ -162,7 +166,8 @@ Only after the user approves, and one batch at a time:
 
 - Step fields: `update_workflow` with `steps` (max 25 per call) and `connections` (labels, targets).
 - Links: `link_to_steps` for roles, tools, attributes, assets; `unlink_from_steps` for dead links.
-- Roles and rates: `update_org`. People to roles: `update_people`.
+- Roles, rates, status and type: `update_org`. People to roles and their Details (active, end_date): `update_people`.
+- Outstanding work the audit finds but cannot fix itself: `create_tasks` on the step or section it belongs to, named as the action ("Confirm the invoice approval limit with Finance"), so it shows on the map instead of only in the report.
 - Tools: `update_account_tools` for status and cost items.
 - Then re-run the checks on what changed and report the before and after counts.
 - Then record the audit and its fixes as a changelog entry with `log-a-decision`: what was found, what was fixed, what was left and why.
